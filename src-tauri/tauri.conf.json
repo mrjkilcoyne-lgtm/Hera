@@ -17,12 +17,11 @@
         "minWidth": 900,
         "minHeight": 600,
         "resizable": true,
-        "fullscreen": false,
-        "decorations": true
+        "fullscreen": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http: https: ws: wss:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
+      "csp": "default-src 'self'; connect-src 'self' http: https: ws: wss:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com"
     }
   },
   "bundle": {
@@ -32,26 +31,16 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/icon.png"
     ],
+    "copyright": "© 2026 Matt Kilcoyne",
+    "category": "Productivity",
+    "shortDescription": "Hyperdimensional semantic engine — offline, private, any data source",
     "windows": {
-      "digestAlgorithm": "sha256",
-      "certificateThumbprint": null,
-      "timestampUrl": "",
-      "webviewInstallMode": {
-        "type": "embedBootstrapper"
-      },
       "nsis": {
         "installMode": "perMachine",
         "languages": ["English"]
       }
-    },
-    "resources": [],
-    "externalBin": [],
-    "copyright": "© 2026 Matt Kilcoyne",
-    "category": "Productivity",
-    "shortDescription": "Hyperdimensional semantic engine — offline, private, any data source",
-    "longDescription": "HERA ingests any document or live data stream and provides semantically validated search, classification, and reasoning using hyperdimensional computing. No cloud. No GPU. No API key."
+    }
   }
 }

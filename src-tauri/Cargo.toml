@@ -5,10 +5,6 @@ description = "HERA — Hyperdimensional Engine for Reasoning and Analysis"
 authors = ["Matt Kilcoyne"]
 edition = "2021"
 
-[lib]
-name = "hera_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
-
 [[bin]]
 name = "hera"
 path = "src/main.rs"

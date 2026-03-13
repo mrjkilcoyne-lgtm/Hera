@@ -42,25 +42,9 @@
       "webviewInstallMode": {
         "type": "embedBootstrapper"
       },
-      "wix": {
-        "language": "en-US",
-        "template": null,
-        "fragmentPaths": [],
-        "componentGroupRefs": [],
-        "componentRefs": [],
-        "featureGroupRefs": [],
-        "featureRefs": [],
-        "mergeRefs": []
-      },
       "nsis": {
-        "template": null,
-        "license": null,
-        "headerImage": null,
-        "sidebarImage": null,
-        "installerIcon": null,
         "installMode": "perMachine",
-        "languages": ["English"],
-        "customNsisCommands": ""
+        "languages": ["English"]
       }
     },
     "resources": [],

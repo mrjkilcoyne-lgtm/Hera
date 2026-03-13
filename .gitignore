@@ -1,0 +1,6 @@
+node_modules/
+dist/
+frontend/dist/
+src-tauri/target/
+.env
+*.log

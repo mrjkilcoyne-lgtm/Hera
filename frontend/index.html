@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HERA</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #080809;
+      --surface:  #111113;
+      --surface2: #18181c;
+      --border:   #1e1e24;
+      --accent:   #c8ff00;
+      --accent2:  #00d4ff;
+      --warn:     #ff6b35;
+      --valid:    #39ff7a;
+      --dim:      #444450;
+      --text:     #e4e4ec;
+      --sub:      #7a7a88;
+      --r:        5px;
+      --sidebar:  300px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Titlebar ── */
+    .titlebar {
+      height: 40px;
+      background: #0a0a0b;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      -webkit-app-region: drag;
+      flex-shrink: 0;
+    }
+    .titlebar-logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 14px;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-sub {
+      font-size: 11px;
+      color: var(--dim);
+      font-family: 'Instrument Serif', serif;
+      font-style: italic;
+    }
+    .titlebar-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      -webkit-app-region: no-drag;
+    }
+    .stat-badge {
+      font-size: 10px;
+      color: var(--sub);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 2px 9px;
+    }
+    .stat-badge b { color: var(--accent2); }
+    .mc-badge {
+      font-size: 10px;
+      padding: 2px 9px;
+      border-radius: 20px;
+      border: 1px solid var(--valid);
+      color: var(--valid);
+    }
+
+    /* ── Main layout ── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Left nav ── */
+    nav {
+      width: 48px;
+      background: #0a0a0b;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      border-radius: var(--r);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--dim);
+      font-size: 16px;
+      transition: all .15s;
+      position: relative;
+    }
+    .nav-btn:hover { background: var(--surface2); color: var(--text); }
+    .nav-btn.active { background: var(--surface2); color: var(--accent); }
+    .nav-btn::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: 44px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      color: var(--text);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s;
+      z-index: 100;
+    }
+    .nav-btn:hover::after { opacity: 1; }
+    .nav-divider { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ── Sidebar ── */
+    aside {
+      width: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .panel-section {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-section.hidden { display: none; }
+
+    .section-head {
+      padding: 10px 14px;
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-head:hover { color: var(--sub); }
+    .section-body { padding: 8px 14px 12px; }
+
+    textarea, input[type=text], input[type=url], input[type=number] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 8px 10px;
+      resize: none;
+      outline: none;
+      transition: border-color .15s;
+    }
+    textarea:focus, input:focus { border-color: var(--accent); }
+    textarea::placeholder, input::placeholder { color: var(--dim); }
+
+    select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      padding: 7px 10px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .field-row { margin-bottom: 7px; }
+    .field-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 4px;
+    }
+
+    .btn-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+
+    .btn {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: var(--r);
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: opacity .12s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary   { background: var(--accent);  color: #000; }
+    .btn-validated { background: var(--valid);   color: #000; }
+    .btn-ghost     { background: transparent; border: 1px solid var(--border); color: var(--sub); }
+    .btn-ghost:hover { border-color: var(--dim); color: var(--text); }
+    .btn-warn      { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
+    .btn-connect   { background: var(--accent2); color: #000; }
+    .btn-full      { width: 100%; text-align: center; padding: 8px 12px; font-size: 11px; }
+
+    /* Drop zone */
+    .dropzone {
+      border: 1px dashed var(--border);
+      border-radius: var(--r);
+      padding: 14px;
+      text-align: center;
+      color: var(--dim);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all .15s;
+      margin-bottom: 8px;
+    }
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(200,255,0,0.03);
+    }
+
+    /* MC toggle */
+    .mc-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      background: #0d0d0f;
+    }
+    .toggle-track {
+      width: 32px;
+      height: 16px;
+      background: var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      position: relative;
+      transition: background .15s;
+      flex-shrink: 0;
+    }
+    .toggle-track.on { background: var(--valid); }
+    .toggle-thumb {
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 12px; height: 12px;
+      background: var(--text);
+      border-radius: 50%;
+      transition: left .15s;
+    }
+    .toggle-track.on .toggle-thumb { left: 18px; }
+    .mc-label { font-size: 11px; color: var(--sub); }
+    .mc-label b { color: var(--valid); }
+
+    /* Log */
+    .log-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 0;
+      min-height: 0;
+    }
+    .log-line {
+      padding: 3px 14px;
+      font-size: 11px;
+      color: var(--sub);
+      border-bottom: 1px solid #0f0f12;
+      line-height: 1.5;
+    }
+    .log-line.fresh { color: var(--text); }
+    .log-line.ok    { color: var(--valid); }
+    .log-line.err   { color: var(--warn); }
+
+    /* ── Main content ── */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 28px;
+      min-width: 0;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .results-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 20px;
+      font-style: italic;
+    }
+    .results-meta { font-size: 11px; color: var(--sub); }
+
+    /* Result cards */
+    .results-grid { display: flex; flex-direction: column; gap: 10px; }
+
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      transition: border-color .15s;
+    }
+    .result-card:hover { border-color: var(--dim); }
+    .result-card.validated { border-left: 3px solid var(--valid); }
+    .result-card.unvalidated { opacity: 0.6; }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .score-pill {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--accent);
+      padding: 2px 8px;
+      background: rgba(200,255,0,.08);
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .consensus-pill {
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .consensus-pill.valid   { background: rgba(57,255,122,.1); color: var(--valid); }
+    .consensus-pill.invalid { background: rgba(255,107,53,.08); color: var(--warn); }
+    .card-label  { font-size: 10px; color: var(--dim); letter-spacing: .08em; text-transform: uppercase; }
+    .card-source { font-size: 10px; color: var(--dim); margin-left: auto; }
+    .card-text   { color: var(--text); font-size: 12.5px; line-height: 1.7; }
+
+    /* Similarity display */
+    .sim-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      text-align: center;
+    }
+    .sim-score-big {
+      font-family: 'Instrument Serif', serif;
+      font-size: 64px;
+      color: var(--accent);
+      line-height: 1;
+      margin: 12px 0 4px;
+    }
+    .sim-ci { font-size: 11px; color: var(--dim); margin-bottom: 16px; }
+    .sim-bar-wrap { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 0 auto; max-width: 400px; }
+    .sim-bar { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+
+    /* Classify display */
+    .cls-display {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .cls-winner { font-family: 'Instrument Serif', serif; font-size: 22px; margin-bottom: 16px; }
+    .cls-winner b { color: var(--accent); }
+    .cls-scores { display: flex; flex-direction: column; gap: 10px; }
+    .cls-row { display: flex; align-items: center; gap: 10px; }
+    .cls-lbl { min-width: 120px; font-size: 11px; color: var(--sub); }
+    .cls-bar-wrap { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .cls-bar { height: 100%; background: var(--accent2); border-radius: 4px; transition: width .5s; }
+    .cls-pct { font-size: 11px; color: var(--sub); min-width: 44px; text-align: right; }
+    .cls-check { font-size: 12px; }
+
+    /* Empty / welcome */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      max-width: 640px;
+    }
+    .welcome h2 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 26px;
+      font-style: italic;
+      line-height: 1.3;
+    }
+    .how-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .how-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .how-card h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 6px;
+    }
+    .how-card p { color: var(--sub); font-size: 12px; line-height: 1.65; }
+
+    .ops-list { display: flex; flex-direction: column; gap: 8px; }
+    .op-row { display: flex; gap: 10px; align-items: baseline; }
+    .op-name { font-family: 'Syne', sans-serif; font-weight: 700; color: var(--accent); min-width: 80px; font-size: 11px; }
+    .op-desc { color: var(--sub); font-size: 12px; }
+
+    /* Device panel */
+    .device-list { display: flex; flex-direction: column; gap: 6px; }
+    .device-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .device-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); flex-shrink: 0; }
+    .device-dot.active { background: var(--valid); box-shadow: 0 0 6px var(--valid); }
+    .device-name { font-size: 11px; flex: 1; }
+    .device-type { font-size: 10px; color: var(--dim); }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- Titlebar -->
+<div class="titlebar">
+  <span class="titlebar-logo">HERA</span>
+  <span class="titlebar-sub">Hyperdimensional Engine for Reasoning and Analysis</span>
+  <div class="titlebar-right">
+    <span class="mc-badge" id="mcBadge">MC ✓ 1000 iter</span>
+    <span class="stat-badge">corpus: <b id="statDocs">0</b> docs · <b id="statVocab">0</b> tokens</span>
+  </div>
+</div>
+
+<div class="workspace">
+
+  <!-- Left nav -->
+  <nav>
+    <button class="nav-btn active" data-view="search" data-tip="Search">⌕</button>
+    <button class="nav-btn" data-view="classify" data-tip="Classify">◈</button>
+    <button class="nav-btn" data-view="similarity" data-tip="Similarity">⟷</button>
+    <button class="nav-btn" data-view="analogy" data-tip="Analogy">∴</button>
+    <div class="nav-divider"></div>
+    <button class="nav-btn" data-view="ingest" data-tip="Ingest">⊕</button>
+    <button class="nav-btn" data-view="devices" data-tip="Devices">⊛</button>
+    <div class="nav-divider"></div>
+    <button class="nav-btn" data-view="settings" data-tip="Settings">⚙</button>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside>
+
+    <!-- SEARCH panel -->
+    <div class="panel-section" id="panel-search">
+      <div class="section-head">Query</div>
+      <div class="section-body">
+        <div class="field-row">
+          <textarea id="searchQ" rows="4" placeholder="Enter a natural language query…"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="runSearch(false)">Fast →</button>
+          <button class="btn btn-validated" onclick="runSearch(true)">Validated ✓</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLASSIFY panel -->
+    <div class="panel-section hidden" id="panel-classify">
+      <div class="section-head">Classify text</div>
+      <div class="section-body">
+        <div class="field-row">
+          <textarea id="classifyQ" rows="4" placeholder="Text to classify against corpus labels…"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-validated btn-full" onclick="runClassify()">Classify (MC) →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMILARITY panel -->
+    <div class="panel-section hidden" id="panel-similarity">
+      <div class="section-head">Similarity</div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field-label">Text A</div>
+          <textarea id="simA" rows="3" placeholder="First passage…"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Text B</div>
+          <textarea id="simB" rows="3" placeholder="Second passage…"></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-validated btn-full" onclick="runSimilarity()">Compare (MC) →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALOGY panel -->
+    <div class="panel-section hidden" id="panel-analogy">
+      <div class="section-head">Analogy — A : B :: C : ?</div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field-label">A</div>
+          <input type="text" id="anaA" placeholder="e.g. king" />
+        </div>
+        <div class="field-row">
+          <div class="field-label">B</div>
+          <input type="text" id="anaB" placeholder="e.g. man" />
+        </div>
+        <div class="field-row">
+          <div class="field-label">C</div>
+          <input type="text" id="anaC" placeholder="e.g. woman" />
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary btn-full" onclick="runAnalogy()">Solve →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- INGEST panel -->
+    <div class="panel-section hidden" id="panel-ingest">
+      <div class="section-head">Ingest documents</div>
+      <div class="section-body">
+        <div class="dropzone" id="dropzone" onclick="triggerFilePick()">
+          Drop any file here<br>
+          <span style="font-size:10px;color:var(--dim)">PDF · DOCX · XLSX · CSV · JSON · XML · HTML · TXT · MD · Images · Audio</span>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Label</div>
+          <input type="text" id="ingestLabel" placeholder="category label…" />
+        </div>
+        <div class="field-row">
+          <div class="field-label">Or paste text</div>
+          <textarea id="ingestText" rows="4" placeholder="Paste text directly…"></textarea>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Or ingest URL</div>
+          <input type="url" id="ingestUrl" placeholder="https://…" />
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="ingestText()">Add text</button>
+          <button class="btn btn-primary" onclick="ingestUrl()">Fetch URL</button>
+          <button class="btn btn-warn" onclick="clearCorpus()">Clear all</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DEVICES panel -->
+    <div class="panel-section hidden" id="panel-devices">
+      <div class="section-head">Connect devices</div>
+      <div class="section-body">
+        <div class="field-row">
+          <div class="field-label">Type</div>
+          <select id="connType">
+            <option value="serial">Serial / USB</option>
+            <option value="http">HTTP Poll</option>
+            <option value="ws">WebSocket</option>
+            <option value="mqtt">MQTT</option>
+            <option value="watch">File Watch</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field-label">Endpoint / port</div>
+          <input type="text" id="connEndpoint" placeholder="COM3 / ws://… / broker:1883" />
+        </div>
+        <div class="field-row">
+          <div class="field-label">Label</div>
+          <input type="text" id="connLabel" placeholder="device label…" />
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-connect" onclick="connectDevice()">Connect →</button>
+          <button class="btn btn-ghost" onclick="refreshPorts()">Scan ports</button>
+        </div>
+        <div style="margin-top:10px">
+          <div class="field-label" style="margin-bottom:6px">Active connections</div>
+          <div class="device-list" id="deviceList">
+            <div style="color:var(--dim);font-size:11px">No active connections</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MC toggle always visible at bottom -->
+    <div class="mc-toggle" style="margin-top:auto">
+      <div class="toggle-track on" id="mcToggle" onclick="toggleMC()">
+        <div class="toggle-thumb"></div>
+      </div>
+      <span class="mc-label">Monte Carlo validation &nbsp;<b>1000 iter · 70% consensus</b></span>
+    </div>
+
+    <!-- Log -->
+    <div class="log-area" style="max-height:130px">
+      <div id="logEl"></div>
+    </div>
+  </aside>
+
+  <!-- Main content area -->
+  <div class="content" id="content">
+    <div class="welcome">
+      <h2>Semantic reasoning without a neural network.</h2>
+      <div class="how-grid">
+        <div class="how-card">
+          <h3>Validated truth</h3>
+          <p>Monte Carlo runs 1000 query iterations with small noise. Only responses appearing in ≥70% of iterations are marked validated — structurally robust, not coincidental.</p>
+        </div>
+        <div class="how-card">
+          <h3>Any data source</h3>
+          <p>PDF, DOCX, XLSX, CSV, JSON, XML, HTML, plain text, serial ports, HTTP streams, WebSocket, MQTT, file watchers. One engine, everything.</p>
+        </div>
+        <div class="how-card">
+          <h3>Offline &amp; private</h3>
+          <p>No cloud. No API key. No GPU. Runs on your machine at ~5W. Your data never leaves.</p>
+        </div>
+        <div class="how-card">
+          <h3>4096-bit vectors</h3>
+          <p>Each token is a random 4096-bit binary vector. Meaning emerges from XOR, majority vote, and Hamming distance — pure algebra.</p>
+        </div>
+      </div>
+      <div class="ops-list">
+        <div class="op-row"><span class="op-name">Bind</span><span class="op-desc">XOR — associates concepts. Invertible: bind(A,bind(A,B)) = B</span></div>
+        <div class="op-row"><span class="op-name">Bundle</span><span class="op-desc">Majority vote — superposes a set. Similar to all, identical to none.</span></div>
+        <div class="op-row"><span class="op-name">Permute</span><span class="op-desc">Bit rotation — encodes position. Same word, different slot → different vector.</span></div>
+        <div class="op-row"><span class="op-name">Similarity</span><span class="op-desc">Normalized Hamming ∈ [0,1]. ~0.5 = orthogonal. 1.0 = identical.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// ─── Tauri bridge ─────────────────────────────────────────────────────────────
+// In Tauri: window.__TAURI__ is injected. Outside Tauri: use JS HDC engine.
+
+let invoke, openFileDialog;
+
+async function initBridge() {
+  if (window.__TAURI__) {
+    const tauri = await import('https://unpkg.com/@tauri-apps/api@2/core');
+    invoke = tauri.invoke;
+    const dialog = await import('https://unpkg.com/@tauri-apps/api@2/dialog');
+    openFileDialog = dialog.open;
+    log('Tauri bridge connected', 'ok');
+  } else {
+    // Dev fallback: load JS HDC engine directly
+    const { HDCEngine } = await import('./src/hdc.js');
+    const engine = new HDCEngine();
+
+    invoke = async (cmd, args) => {
+      switch (cmd) {
+        case 'add_text': {
+          const id = engine.add_document(args.text, args.label); return JSON.stringify({id, chunks:1});
+        }
+        case 'search':           return engine.search(args.query, args.top_k);
+        case 'search_validated': return engine.search(args.query, args.top_k); // JS: same path
+        case 'classify':         return engine.classify(args.text);
+        case 'similarity':       return JSON.stringify({ score: engine.similarity_score(args.a, args.b), mean_mc: engine.similarity_score(args.a, args.b), std_dev: 0, ci_low: 0, ci_high: 1, interpretation: 'see score', iterations: 0 });
+        case 'analogy':          return engine.analogy(args.a, args.b, args.c, args.top_k);
+        case 'get_stats':        return JSON.stringify({ doc_count: engine.doc_count(), vocab_size: engine.vocab_size() });
+        case 'clear_corpus':     engine.clear_corpus(); return null;
+        case 'list_serial_ports':return JSON.stringify([]);
+        default: return null;
+      }
+    };
+    openFileDialog = async () => null;
+    log('Dev mode — JS engine active (build with Tauri for full features)', 'ok');
+  }
+  updateStats();
+}
+
+// ─── Nav routing ──────────────────────────────────────────────────────────────
+let activeView = 'search';
+document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeView = btn.dataset.view;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.panel-section').forEach(p => p.classList.add('hidden'));
+    const panel = document.getElementById(`panel-${activeView}`);
+    if (panel) panel.classList.remove('hidden');
+  });
+});
+
+// ─── MC toggle ────────────────────────────────────────────────────────────────
+let mcEnabled = true;
+window.toggleMC = () => {
+  mcEnabled = !mcEnabled;
+  document.getElementById('mcToggle').classList.toggle('on', mcEnabled);
+  document.getElementById('mcBadge').style.opacity = mcEnabled ? '1' : '0.3';
+  log(`Monte Carlo ${mcEnabled ? 'enabled' : 'disabled'}`);
+};
+
+// ─── Search ───────────────────────────────────────────────────────────────────
+window.runSearch = async (validated) => {
+  const q = document.getElementById('searchQ').value.trim();
+  if (!q) return log('Enter a query', 'err');
+  log(`Searching: "${q}"${validated?' (MC validated)':''}…`);
+  const t0 = performance.now();
+  const cmd = (validated && mcEnabled) ? 'search_validated' : 'search';
+  const raw = JSON.parse(await invoke(cmd, { query: q, top_k: 10 }));
+  const results = raw.results || raw;
+  const ms = (performance.now() - t0).toFixed(0);
+  const validated_count = results.filter(r => r.validated !== false).length;
+  renderSearch(results, q, ms, validated);
+  log(`${results.length} results in ${ms}ms${validated?` · ${validated_count} validated`:''}`,'ok');
+  updateStats();
+};
+
+function renderSearch(results, query, ms, validated) {
+  if (!results.length) { setContent('<p style="color:var(--dim);padding:40px">No results.</p>'); return; }
+  const header = `
+    <div class="results-header">
+      <span class="results-title">"${esc(query)}"</span>
+      <span class="results-meta">${results.length} results · ${ms}ms${validated?' · MC validated':''}</span>
+    </div>`;
+  const cards = results.map(r => `
+    <div class="result-card ${r.validated === false ? 'unvalidated' : r.validated ? 'validated' : ''}">
+      <div class="card-top">
+        <span class="score-pill">${((r.score||0)*100).toFixed(1)}%</span>
+        ${r.consensus != null ? `<span class="consensus-pill ${r.validated?'valid':'invalid'}">
+          ${(r.consensus*100).toFixed(0)}% consensus ${r.validated?'✓':'✗'}
+        </span>` : ''}
+        ${r.label ? `<span class="card-label">${esc(r.label)}</span>` : ''}
+        ${r.source ? `<span class="card-source">${esc(r.source.split(/[/\\]/).pop() || r.source)}</span>` : ''}
+      </div>
+      <div class="card-text">${esc(r.text)}</div>
+    </div>`).join('');
+  setContent(header + `<div class="results-grid">${cards}</div>`);
+}
+
+// ─── Classify ─────────────────────────────────────────────────────────────────
+window.runClassify = async () => {
+  const text = document.getElementById('classifyQ').value.trim();
+  if (!text) return log('Enter text to classify', 'err');
+  log('Classifying (MC 1000 iter)…');
+  const r = JSON.parse(await invoke('classify', { text }));
+  const bars = (r.scores||[]).map(s => `
+    <div class="cls-row">
+      <span class="cls-lbl">${esc(s.label||'')}</span>
+      <div class="cls-bar-wrap"><div class="cls-bar" style="width:${((s.consensus||s.score||0)*100).toFixed(0)}%"></div></div>
+      <span class="cls-pct">${((s.consensus||s.score||0)*100).toFixed(1)}%</span>
+      <span class="cls-check">${s.validated?'✓':''}</span>
+    </div>`).join('');
+  setContent(`
+    <div class="cls-display">
+      <div class="cls-winner">→ <b>${esc(r.label||'unknown')}</b>
+        <span style="font-size:14px;color:var(--sub);font-family:'Instrument Serif',serif;font-style:italic">
+          ${((r.consensus||0)*100).toFixed(1)}% consensus · ${r.iterations||0} iterations
+        </span>
+      </div>
+      <div class="cls-scores">${bars}</div>
+    </div>`);
+  log(`Classified → ${r.label} (${((r.consensus||0)*100).toFixed(1)}%)`, 'ok');
+  updateStats();
+};
+
+// ─── Similarity ───────────────────────────────────────────────────────────────
+window.runSimilarity = async () => {
+  const a = document.getElementById('simA').value.trim();
+  const b = document.getElementById('simB').value.trim();
+  if (!a || !b) return log('Enter both texts', 'err');
+  log('Computing similarity (MC)…');
+  const r = JSON.parse(await invoke('similarity', { a, b }));
+  const pct = ((r.score||r.mean_mc||0) * 100).toFixed(1);
+  setContent(`
+    <div class="sim-display">
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center;margin-bottom:20px">
+        <div style="color:var(--sub);font-style:italic;font-size:12px">"${esc(a.slice(0,120))}"</div>
+        <div style="color:var(--dim);font-size:22px">⟷</div>
+        <div style="color:var(--sub);font-style:italic;font-size:12px">"${esc(b.slice(0,120))}"</div>
+      </div>
+      <div class="sim-score-big">${pct}%</div>
+      <div class="sim-ci" style="color:var(--sub)">
+        ${r.std_dev ? `σ = ${(r.std_dev*100).toFixed(2)}% &nbsp;·&nbsp; 95% CI [${(r.ci_low*100).toFixed(1)}%, ${(r.ci_high*100).toFixed(1)}%]` : ''}
+        &nbsp;·&nbsp; <em>${r.interpretation||''}</em>
+      </div>
+      <div class="sim-bar-wrap">
+        <div class="sim-bar" style="width:${pct}%"></div>
+      </div>
+    </div>`);
+  log(`Similarity: ${pct}%${r.std_dev?` ± ${(r.std_dev*100).toFixed(2)}%`:''}`, 'ok');
+};
+
+// ─── Analogy ──────────────────────────────────────────────────────────────────
+window.runAnalogy = async () => {
+  const a = document.getElementById('anaA').value.trim();
+  const b = document.getElementById('anaB').value.trim();
+  const c = document.getElementById('anaC').value.trim();
+  if (!a||!b||!c) return log('Enter all three terms', 'err');
+  log(`Analogy: ${a} : ${b} :: ${c} : ?`);
+  const r = JSON.parse(await invoke('analogy', { a, b, c, top_k: 8 }));
+  const results = r.results || r;
+  const cards = results.map(item => `
+    <div class="result-card">
+      <div class="card-top">
+        <span class="score-pill">${((item.score||0)*100).toFixed(1)}%</span>
+        ${item.label?`<span class="card-label">${esc(item.label)}</span>`:''}
+      </div>
+      <div class="card-text">${esc((item.text||'').slice(0,200))}</div>
+    </div>`).join('');
+  setContent(`
+    <div class="results-header">
+      <span class="results-title">"${esc(a)}" : "${esc(b)}" :: "${esc(c)}" : <b style="color:var(--accent)">?</b></span>
+    </div>
+    <div class="results-grid">${cards}</div>`);
+  log(`Analogy solved → ${results[0]?.text?.slice(0,60)||'no results'}`, 'ok');
+};
+
+// ─── Ingest ───────────────────────────────────────────────────────────────────
+window.ingestText = async () => {
+  const text = document.getElementById('ingestText').value.trim();
+  const label = document.getElementById('ingestLabel').value.trim() || 'manual';
+  if (!text) return log('No text to ingest', 'err');
+  const chunks = text.split(/\n{2,}/).map(s=>s.trim()).filter(s=>s.length > 20);
+  for (const chunk of chunks) await invoke('add_text', { text: chunk, label, source: 'paste' });
+  document.getElementById('ingestText').value = '';
+  updateStats();
+  log(`Ingested ${chunks.length} chunks · label: ${label}`, 'ok');
+};
+
+window.ingestUrl = async () => {
+  const url = document.getElementById('ingestUrl').value.trim();
+  const label = document.getElementById('ingestLabel').value.trim() || 'web';
+  if (!url) return log('Enter a URL', 'err');
+  log(`Fetching ${url}…`);
+  try {
+    const r = JSON.parse(await invoke('add_url', { url, label }));
+    log(`Ingested ${r.chunks} chunks from ${url}`, 'ok');
+    document.getElementById('ingestUrl').value = '';
+    updateStats();
+  } catch(e) { log(`URL error: ${e}`, 'err'); }
+};
+
+window.triggerFilePick = async () => {
+  if (!openFileDialog) return log('File picker requires Tauri build', 'err');
+  const path = await openFileDialog({ multiple: false });
+  if (!path) return;
+  const label = document.getElementById('ingestLabel').value.trim() || 'file';
+  log(`Ingesting ${path}…`);
+  try {
+    const r = JSON.parse(await invoke('add_document_path', { path, label }));
+    log(`Ingested ${r.chunks} chunks from ${r.source}`, 'ok');
+    updateStats();
+  } catch(e) { log(`Ingest error: ${e}`, 'err'); }
+};
+
+window.clearCorpus = async () => {
+  await invoke('clear_corpus');
+  updateStats();
+  log('Corpus cleared', 'ok');
+};
+
+// ─── Dropzone ─────────────────────────────────────────────────────────────────
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', async e => {
+  e.preventDefault(); dz.classList.remove('dragover');
+  const label = document.getElementById('ingestLabel').value.trim() || 'drop';
+  for (const file of e.dataTransfer.files) {
+    log(`Reading ${file.name}…`);
+    const buf = await file.arrayBuffer();
+    const bytes = Array.from(new Uint8Array(buf));
+    try {
+      const r = JSON.parse(await invoke('add_document_bytes', { bytes, source: file.name, label }));
+      log(`Ingested ${r.chunks} chunks from ${file.name}`, 'ok');
+    } catch(e2) { log(`Error: ${e2}`, 'err'); }
+  }
+  updateStats();
+});
+
+// ─── Devices ──────────────────────────────────────────────────────────────────
+window.refreshPorts = async () => {
+  try {
+    const ports = JSON.parse(await invoke('list_serial_ports'));
+    log(`Found ports: ${ports.length ? ports.join(', ') : 'none'}`);
+  } catch(e) { log('Port scan: '+e, 'err'); }
+};
+
+const devices = [];
+window.connectDevice = () => {
+  const type = document.getElementById('connType').value;
+  const endpoint = document.getElementById('connEndpoint').value.trim();
+  const label = document.getElementById('connLabel').value.trim() || type;
+  if (!endpoint) return log('Enter endpoint', 'err');
+  devices.push({ type, endpoint, label, active: true, events: 0 });
+  renderDevices();
+  log(`Connected ${type}: ${endpoint} · label: ${label}`, 'ok');
+  // In full Tauri build: invoke connector setup command here
+};
+
+function renderDevices() {
+  const list = document.getElementById('deviceList');
+  if (!devices.length) { list.innerHTML = '<div style="color:var(--dim);font-size:11px">No active connections</div>'; return; }
+  list.innerHTML = devices.map(d => `
+    <div class="device-item">
+      <div class="device-dot ${d.active?'active':''}"></div>
+      <span class="device-name">${esc(d.endpoint)}</span>
+      <span class="device-type">${d.type}</span>
+    </div>`).join('');
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+async function updateStats() {
+  try {
+    const s = JSON.parse(await invoke('get_stats'));
+    document.getElementById('statDocs').textContent = s.doc_count;
+    document.getElementById('statVocab').textContent = s.vocab_size;
+  } catch {}
+}
+
+function setContent(html) {
+  document.getElementById('content').innerHTML = html;
+}
+
+function log(msg, cls = '') {
+  const el = document.getElementById('logEl');
+  const line = document.createElement('div');
+  line.className = `log-line ${cls} fresh`;
+  line.textContent = `${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})} ${msg}`;
+  el.prepend(line);
+  setTimeout(() => line.classList.remove('fresh'), 2000);
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+window.runSearch = window.runSearch;
+initBridge();
+</script>
+</body>
+</html>

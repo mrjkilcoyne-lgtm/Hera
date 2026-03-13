@@ -5,6 +5,9 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -40,13 +43,12 @@ jobs:
           releaseBody: |
             HERA — Hyperdimensional Engine for Reasoning and Analysis
 
-            Offline semantic search, classification, similarity, and analogy.
-            Monte Carlo truth validation (1000 iterations).
-            Ingest any document type. Connect any device.
+            Offline semantic search, classification, similarity, analogy.
+            Monte Carlo truth validation (1000 iterations, 70% consensus).
+            Ingest any document. Connect any device.
             No cloud. No GPU. No API key.
           releaseDraft: false
           prerelease: false
-          includeUpdaterJson: true
 
   build-mac:
     runs-on: macos-latest
@@ -54,7 +56,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+        with:
+          node-version: 20
+          cache: npm
       - run: npm install
       - uses: tauri-apps/tauri-action@v0
         env:

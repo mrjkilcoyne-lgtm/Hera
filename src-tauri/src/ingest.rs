@@ -1,8 +1,4 @@
 // ingest.rs — Universal document ingestion pipeline
-//
-// Handles: PDF, DOCX, XLSX, CSV, TXT, MD, JSON, XML, HTML,
-//          images (OCR stub), audio (transcript stub), URLs, raw bytes
-// Extensible: add a new arm to `ingest_bytes` for any new type.
 
 use anyhow::{anyhow, Result};
 use std::path::Path;
@@ -12,7 +8,7 @@ pub struct IngestedDoc {
     pub text:   String,
     pub source: String,
     pub mime:   String,
-    pub chunks: Vec<String>,  // pre-split into ingestible pieces
+    pub chunks: Vec<String>,
 }
 
 impl IngestedDoc {
@@ -22,18 +18,14 @@ impl IngestedDoc {
     }
 }
 
-/// Split text into overlapping chunks of ~max_words words.
-/// Overlap = 20% for context continuity at boundaries.
 pub fn chunk_text(text: &str, max_words: usize) -> Vec<String> {
     let words: Vec<&str> = text.split_whitespace().collect();
     if words.is_empty() { return vec![]; }
     if words.len() <= max_words { return vec![text.trim().to_string()]; }
-
     let overlap = max_words / 5;
     let step = max_words - overlap;
     let mut chunks = Vec::new();
     let mut i = 0;
-
     while i < words.len() {
         let end = (i + max_words).min(words.len());
         chunks.push(words[i..end].join(" "));
@@ -43,65 +35,42 @@ pub fn chunk_text(text: &str, max_words: usize) -> Vec<String> {
     chunks
 }
 
-/// Main entry point: ingest anything.
-/// Pass raw bytes + a filename/URL hint for MIME detection.
 pub fn ingest_bytes(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
     let ext = Path::new(source)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
+        .extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
 
     match ext.as_str() {
-        "pdf"              => ingest_pdf(bytes, source),
-        "docx"             => ingest_docx(bytes, source),
-        "xlsx" | "xls"     => ingest_xlsx(bytes, source),
-        "csv"              => ingest_csv(bytes, source),
-        "json"             => ingest_json(bytes, source),
-        "xml"              => ingest_xml(bytes, source),
-        "html" | "htm"     => ingest_html(bytes, source),
-        "md" | "markdown"  => ingest_text(bytes, source, "text/markdown"),
-        "txt" | "log"      => ingest_text(bytes, source, "text/plain"),
-        "rs" | "py" | "js" | "ts" | "go" | "c" | "cpp" | "java" => {
-            ingest_text(bytes, source, "text/code")
-        }
-        "png" | "jpg" | "jpeg" | "bmp" | "tiff" | "webp" => {
-            ingest_image(bytes, source)
-        }
-        "mp3" | "wav" | "ogg" | "m4a" | "flac" => {
-            ingest_audio(bytes, source)
-        }
-        // Unknown: try UTF-8 text, fall back to hex summary
+        "pdf"          => ingest_pdf(bytes, source),
+        "docx"         => ingest_docx(bytes, source),
+        "xlsx"|"xls"   => ingest_xlsx(bytes, source),
+        "csv"          => ingest_csv(bytes, source),
+        "json"         => ingest_json(bytes, source),
+        "xml"          => ingest_xml(bytes, source),
+        "html"|"htm"   => ingest_html(bytes, source),
+        "md"|"markdown"=> ingest_text(bytes, source, "text/markdown"),
+        "txt"|"log"    => ingest_text(bytes, source, "text/plain"),
+        "rs"|"py"|"js"|"ts"|"go"|"c"|"cpp"|"java" => ingest_text(bytes, source, "text/code"),
+        "png"|"jpg"|"jpeg"|"bmp"|"tiff"|"webp" => ingest_image(bytes, source),
+        "mp3"|"wav"|"ogg"|"m4a"|"flac" => ingest_audio(bytes, source),
         _ => {
-            if let Ok(text) = std::str::from_utf8(bytes) {
+            if std::str::from_utf8(bytes).is_ok() {
                 ingest_text(bytes, source, "text/plain")
             } else {
                 Ok(IngestedDoc::new(
-                    format!("[Binary data: {} bytes from {}]", bytes.len(), source),
-                    source.to_string(),
-                    "application/octet-stream".to_string(),
+                    format!("[Binary: {} bytes from {}]", bytes.len(), source),
+                    source.to_string(), "application/octet-stream".to_string(),
                 ))
             }
         }
     }
 }
 
-/// Ingest a file path directly.
 pub fn ingest_path(path: &str) -> Result<IngestedDoc> {
-    let bytes = std::fs::read(path).map_err(|e| anyhow!("Read error: {}", e))?;
+    let bytes = std::fs::read(path).map_err(|e: std::io::Error| anyhow!("Read error: {}", e))?;
     ingest_bytes(&bytes, path)
 }
 
-/// Ingest from a URL (synchronous wrapper — call from async context via spawn_blocking).
-pub fn ingest_url_sync(url: &str) -> Result<IngestedDoc> {
-    // Minimal sync HTTP using std — full reqwest available in async commands
-    Err(anyhow!("Use ingest_url_async in Tauri command context"))
-}
-
-// ─── Format handlers ──────────────────────────────────────────────────────────
-
 fn ingest_pdf(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
-    // pdf-extract: pure Rust, no system deps
     let text = pdf_extract::extract_text_from_mem(bytes)
         .map_err(|e| anyhow!("PDF error: {}", e))?;
     Ok(IngestedDoc::new(clean_text(&text), source.to_string(), "application/pdf".to_string()))
@@ -110,9 +79,10 @@ fn ingest_pdf(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
 fn ingest_docx(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
     use docx_rust::document::BodyContent;
     let cursor = std::io::Cursor::new(bytes);
-    let docx = docx_rust::DocxFile::from_reader(cursor)
-        .map_err(|e| anyhow!("DOCX error: {:?}", e))?
-        .parse()
+    // Fix: use let binding to extend lifetime
+    let file = docx_rust::DocxFile::from_reader(cursor)
+        .map_err(|e| anyhow!("DOCX error: {:?}", e))?;
+    let docx = file.parse()
         .map_err(|e| anyhow!("DOCX parse: {:?}", e))?;
 
     let mut text = String::new();
@@ -130,7 +100,8 @@ fn ingest_docx(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
             text.push('\n');
         }
     }
-    Ok(IngestedDoc::new(clean_text(&text), source.to_string(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()))
+    Ok(IngestedDoc::new(clean_text(&text), source.to_string(),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document".to_string()))
 }
 
 fn ingest_xlsx(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
@@ -142,15 +113,20 @@ fn ingest_xlsx(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
     let mut text = String::new();
     for sheet_name in workbook.sheet_names().to_vec() {
         text.push_str(&format!("# Sheet: {}\n", sheet_name));
-        if let Some(Ok(range)) = workbook.worksheet_range(&sheet_name) {
-            for row in range.rows() {
-                let cells: Vec<String> = row.iter().map(|c| c.to_string()).collect();
-                text.push_str(&cells.join("\t"));
-                text.push('\n');
+        // calamine 0.24: worksheet_range returns Result directly
+        match workbook.worksheet_range(&sheet_name) {
+            Ok(range) => {
+                for row in range.rows() {
+                    let cells: Vec<String> = row.iter().map(|c: &calamine::Data| c.to_string()).collect();
+                    text.push_str(&cells.join("\t"));
+                    text.push('\n');
+                }
             }
+            Err(e) => { text.push_str(&format!("[Sheet error: {}]\n", e)); }
         }
     }
-    Ok(IngestedDoc::new(text, source.to_string(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string()))
+    Ok(IngestedDoc::new(text, source.to_string(),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".to_string()))
 }
 
 fn ingest_csv(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
@@ -172,7 +148,6 @@ fn ingest_csv(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
 fn ingest_json(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
     let v: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|e| anyhow!("JSON error: {}", e))?;
-    // Flatten JSON to human-readable key: value pairs
     let mut lines = Vec::new();
     flatten_json(&v, "", &mut lines);
     Ok(IngestedDoc::new(lines.join("\n"), source.to_string(), "application/json".to_string()))
@@ -196,61 +171,41 @@ fn flatten_json(v: &serde_json::Value, prefix: &str, out: &mut Vec<String>) {
 }
 
 fn ingest_xml(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
-    // Strip XML tags, extract text content
     let raw = std::str::from_utf8(bytes).map_err(|e| anyhow!("XML UTF-8: {}", e))?;
-    let text = strip_tags(raw);
-    Ok(IngestedDoc::new(clean_text(&text), source.to_string(), "application/xml".to_string()))
+    Ok(IngestedDoc::new(clean_text(&strip_tags(raw)), source.to_string(), "application/xml".to_string()))
 }
 
 fn ingest_html(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
     let raw = std::str::from_utf8(bytes).map_err(|e| anyhow!("HTML UTF-8: {}", e))?;
-    // Remove <script> and <style> blocks first
     let no_scripts = regex_remove(raw, r"(?s)<(script|style)[^>]*>.*?</(script|style)>");
-    let text = strip_tags(&no_scripts);
-    Ok(IngestedDoc::new(clean_text(&text), source.to_string(), "text/html".to_string()))
+    Ok(IngestedDoc::new(clean_text(&strip_tags(&no_scripts)), source.to_string(), "text/html".to_string()))
 }
 
 fn ingest_text(bytes: &[u8], source: &str, mime: &str) -> Result<IngestedDoc> {
-    let text = String::from_utf8_lossy(bytes).to_string();
-    Ok(IngestedDoc::new(clean_text(&text), source.to_string(), mime.to_string()))
+    Ok(IngestedDoc::new(clean_text(&String::from_utf8_lossy(bytes)), source.to_string(), mime.to_string()))
 }
 
 fn ingest_image(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
-    // Stub: in production, call tesseract or a cloud OCR endpoint
-    // For now return metadata + size to acknowledge the file
     Ok(IngestedDoc::new(
-        format!("[Image: {} bytes from {}. Connect Tesseract OCR or an OCR endpoint to extract text.]",
-            bytes.len(), source),
-        source.to_string(),
-        "image/*".to_string(),
+        format!("[Image: {} bytes from {}. Connect Tesseract OCR to extract text.]", bytes.len(), source),
+        source.to_string(), "image/*".to_string(),
     ))
 }
 
 fn ingest_audio(bytes: &[u8], source: &str) -> Result<IngestedDoc> {
-    // Stub: in production, pipe through whisper.cpp bindings
     Ok(IngestedDoc::new(
-        format!("[Audio: {} bytes from {}. Connect whisper.cpp to transcribe.]",
-            bytes.len(), source),
-        source.to_string(),
-        "audio/*".to_string(),
+        format!("[Audio: {} bytes from {}. Connect whisper.cpp to transcribe.]", bytes.len(), source),
+        source.to_string(), "audio/*".to_string(),
     ))
 }
 
-// ─── Text utilities ──────────────────────────────────────────────────────────
-
 fn clean_text(s: &str) -> String {
-    // Collapse whitespace, remove control chars
     let mut out = String::with_capacity(s.len());
     let mut last_space = true;
     for c in s.chars() {
         if c.is_control() && c != '\n' { continue; }
-        if c.is_whitespace() {
-            if !last_space { out.push(' '); }
-            last_space = true;
-        } else {
-            out.push(c);
-            last_space = false;
-        }
+        if c.is_whitespace() { if !last_space { out.push(' '); } last_space = true; }
+        else { out.push(c); last_space = false; }
     }
     out.trim().to_string()
 }
@@ -269,9 +224,5 @@ fn strip_tags(s: &str) -> String {
 }
 
 fn regex_remove(s: &str, pattern: &str) -> String {
-    if let Ok(re) = regex::Regex::new(pattern) {
-        re.replace_all(s, " ").to_string()
-    } else {
-        s.to_string()
-    }
+    regex::Regex::new(pattern).map(|re| re.replace_all(s, " ").to_string()).unwrap_or_else(|_| s.to_string())
 }

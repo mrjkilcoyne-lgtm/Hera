@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Tauri
-tauri = { version = "2", features = ["shell-open"] }
+tauri = { version = "2" }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
